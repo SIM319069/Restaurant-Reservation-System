@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import toast from 'react-hot-toast';
+import { CircularProgress, Box } from '@mui/material';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -13,18 +13,16 @@ const AuthCallback = () => {
     
     if (token) {
       login(token);
-      toast.success('Successfully logged in!');
-      navigate('/');
+      navigate('/dashboard');
     } else {
-      toast.error('Authentication failed');
-      navigate('/');
+      navigate('/login?error=auth_failed');
     }
   }, [searchParams, login, navigate]);
 
   return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
-    </div>
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+      <CircularProgress />
+    </Box>
   );
 };
 

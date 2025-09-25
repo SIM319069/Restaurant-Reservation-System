@@ -1,7 +1,1 @@
-import React from 'react';
-
-const RestaurantDetail = () => {
-  return <div>Restaurant Detail - Coming Soon</div>;
-};
-
-export default RestaurantDetail;
+import React from 'react'; import { Typography } from '@mui/material'; export default function RestaurantDetail() { return <Typography>Restaurant Detail Page</Typography>; }

@@ -1,7 +1,1 @@
-import React from 'react';
-
-const AdminDashboard = () => {
-  return <div>Admin Dashboard - Coming Soon</div>;
-};
-
-export default AdminDashboard;
+import React from 'react'; import { Typography } from '@mui/material'; export default function AdminDashboard() { return <Typography>Admin Dashboard Page</Typography>; }

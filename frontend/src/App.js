@@ -1,24 +1,53 @@
 import React from 'react';
-import './index.css';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+
+// Components
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import RestaurantList from './pages/RestaurantList';
+import RestaurantDetail from './pages/RestaurantDetail';
+import BookingForm from './pages/BookingForm';
+import AdminDashboard from './pages/AdminDashboard';
+import AuthCallback from './pages/AuthCallback';
+
+// Context
+import { AuthProvider } from './context/AuthContext';
+
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#2196f3',
+    },
+    secondary: {
+      main: '#ff9800',
+    },
+  },
+});
 
 function App() {
   return (
-    <div style={{ padding: '20px', textAlign: 'center' }}>
-      <h1 style={{ color: '#f97316' }}>🍽️ Restaurant Reservation System</h1>
-      <p>System is running successfully!</p>
-      <div style={{ marginTop: '20px' }}>
-        <button style={{ 
-          backgroundColor: '#f97316', 
-          color: 'white', 
-          padding: '10px 20px', 
-          border: 'none', 
-          borderRadius: '5px',
-          cursor: 'pointer'
-        }}>
-          Test Button
-        </button>
-      </div>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AuthProvider>
+        <Router>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/restaurants" element={<RestaurantList />} />
+            <Route path="/restaurants/:id" element={<RestaurantDetail />} />
+            <Route path="/booking/:restaurantId" element={<BookingForm />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

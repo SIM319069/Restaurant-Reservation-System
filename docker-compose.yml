@@ -1,49 +1,64 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: restaurant_db
-    restart: always
+    container_name: restaurant_db_new
     environment:
-      POSTGRES_USER: restaurant_user
-      POSTGRES_PASSWORD: restaurant_password
       POSTGRES_DB: restaurant_reservation
+      POSTGRES_USER: myuser  
+      POSTGRES_PASSWORD: mypass
+      POSTGRES_INITDB_ARGS: "--auth-local=trust --auth-host=md5"
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - fresh_postgres_data:/var/lib/postgresql/data
+    networks:
+      - restaurant_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d restaurant_reservation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build: ./backend
-    container_name: restaurant_backend
-    restart: always
+    container_name: restaurant_backend_new
     ports:
       - "5001:5001"
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://restaurant_user:restaurant_password@postgres:5432/restaurant_reservation
-      - GOOGLE_CLIENT_ID=751851699472-nvrco74pf7gnhkf1pcojn37k4gcn096g.apps.googleusercontent.com
-      - GOOGLE_CLIENT_SECRET=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
-      - JWT_SECRET=ae54e6e1a3540d03b1d8aba1baea55d4d3f39c6b812ba6902b18a55619423d6be59918666d6008b36a703260c7feb3a2ba74babc12d47bec35e3b8018407cb2c
-      - CLIENT_URL=http://localhost:3001
+      - DATABASE_URL=postgresql://myuser:mypass@postgres:5432/restaurant_reservation
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:-fallback-jwt-secret}
+      - SESSION_SECRET=${SESSION_SECRET:-fallback-session-secret}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - /app/node_modules
+    networks:
+      - restaurant_network
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
-    container_name: restaurant_frontend
-    restart: always
+    container_name: restaurant_frontend_new
     ports:
       - "3001:3001"
     environment:
       - REACT_APP_API_URL=http://localhost:5001
-      - REACT_APP_GOOGLE_CLIENT_ID=751851699472-nvrco74pf7gnhkf1pcojn37k4gcn096g.apps.googleusercontent.com
+      - REACT_APP_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - PORT=3001
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    networks:
+      - restaurant_network
 
 volumes:
-  postgres_data:
+  fresh_postgres_data:  # Brand new volume name
+
+networks:
+  restaurant_network:
+    driver: bridge

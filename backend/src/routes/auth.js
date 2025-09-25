@@ -1,38 +1,45 @@
 const express = require('express');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
+
 const router = express.Router();
 
-// Google OAuth
 router.get('/google', passport.authenticate('google', {
   scope: ['profile', 'email']
 }));
 
 router.get('/google/callback', 
-  passport.authenticate('google', { session: false }),
+  passport.authenticate('google', { failureRedirect: 'http://localhost:3001/login' }),
   (req, res) => {
     const token = jwt.sign(
-      { id: req.user.id, email: req.user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { 
+        userId: req.user.id, 
+        email: req.user.email,
+        role: req.user.role 
+      },
+      process.env.JWT_SECRET || 'fallback-secret',
+      { expiresIn: '24h' }
     );
 
-    // Redirect to frontend with token
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}`);
+    res.redirect(`http://localhost:3001/auth/callback?token=${token}`);
   }
 );
 
-// Get current user
-router.get('/me', 
-  passport.authenticate('jwt', { session: false }),
-  (req, res) => {
-    res.json(req.user);
-  }
-);
-
-// Logout
 router.post('/logout', (req, res) => {
-  res.json({ message: 'Logged out successfully' });
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Logout failed' });
+    }
+    res.json({ message: 'Logged out successfully' });
+  });
+});
+
+router.get('/user', (req, res) => {
+  if (req.user) {
+    res.json(req.user);
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
 });
 
 module.exports = router;
