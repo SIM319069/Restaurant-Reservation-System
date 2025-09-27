@@ -14,21 +14,37 @@ export const AuthProvider = ({ children }) => {
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
+    checkAuthState();
   }, []);
 
-  const fetchUser = async () => {
+  const checkAuthState = async () => {
     try {
-      const response = await axios.get(`${API_URL}/auth/user`);
-      setUser(response.data);
+      const token = localStorage.getItem('token');
+      console.log('Checking auth state, token found:', !!token);
+      
+      if (token) {
+        // Set authorization header
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Decode JWT to get user info (simple decode, not verification)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        console.log('JWT payload:', payload);
+        
+        // Create user object from JWT payload
+        const userData = {
+          id: payload.userId,
+          email: payload.email,
+          role: payload.role || 'customer'
+        };
+        
+        console.log('Setting user from token:', userData);
+        setUser(userData);
+      } else {
+        console.log('No token found');
+      }
     } catch (error) {
-      console.error('Failed to fetch user:', error);
+      console.error('Auth check failed:', error);
+      // Clear invalid token
       localStorage.removeItem('token');
       delete axios.defaults.headers.common['Authorization'];
     } finally {
@@ -37,9 +53,31 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = (token) => {
-    localStorage.setItem('token', token);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    fetchUser();
+    console.log('Login called with token:', token);
+    
+    try {
+      // Store token
+      localStorage.setItem('token', token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Decode JWT payload
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      console.log('Decoded JWT payload:', payload);
+      
+      // Set user state
+      const userData = {
+        id: payload.userId,
+        email: payload.email,
+        role: payload.role || 'customer',
+        name: payload.name || payload.email // Fallback to email if no name
+      };
+      
+      console.log('Setting user state:', userData);
+      setUser(userData);
+      
+    } catch (error) {
+      console.error('Login error:', error);
+    }
   };
 
   const logout = async () => {
@@ -60,6 +98,9 @@ export const AuthProvider = ({ children }) => {
     logout,
     loading
   };
+
+  // Debug logging
+  console.log('AuthContext state:', { user: !!user, loading });
 
   return (
     <AuthContext.Provider value={value}>
