@@ -31,16 +31,19 @@ import axios from 'axios';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading } = useAuth(); // FIXED: Include loading state
   const [reservations, setReservations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [reservationsLoading, setReservationsLoading] = useState(true);
   const [error, setError] = useState('');
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
   useEffect(() => {
-    fetchReservations();
-  }, []);
+    // Only fetch reservations if user exists and auth is not loading
+    if (user && !loading) {
+      fetchReservations();
+    }
+  }, [user, loading]);
 
   const fetchReservations = async () => {
     try {
@@ -50,7 +53,7 @@ const Dashboard = () => {
       console.error('Error fetching reservations:', error);
       setError('Failed to load reservations');
     } finally {
-      setLoading(false);
+      setReservationsLoading(false);
     }
   };
 
@@ -80,10 +83,31 @@ const Dashboard = () => {
     });
   };
 
-  if (!user) {
+  // FIXED: Show loading state while checking authentication
+  if (loading) {
     return (
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        <Alert severity="warning">Please log in to view your dashboard.</Alert>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          <CircularProgress size={60} />
+        </Box>
+      </Container>
+    );
+  }
+
+  // FIXED: Only show "Please log in" after loading is complete and user is null
+  if (!loading && !user) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        <Alert severity="warning">
+          Please log in to view your dashboard.
+          <Button 
+            variant="contained" 
+            sx={{ ml: 2 }} 
+            onClick={() => navigate('/login')}
+          >
+            Go to Login
+          </Button>
+        </Alert>
       </Container>
     );
   }
@@ -211,7 +235,7 @@ const Dashboard = () => {
             My Reservations
           </Typography>
 
-          {loading ? (
+          {reservationsLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
               <CircularProgress />
             </Box>

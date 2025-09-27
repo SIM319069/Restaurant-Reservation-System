@@ -30,23 +30,27 @@ export const AuthProvider = ({ children }) => {
         const payload = JSON.parse(atob(token.split('.')[1]));
         console.log('JWT payload:', payload);
         
-        // Create user object from JWT payload
+        // Create user object from JWT payload - FIXED: Include all fields consistently
         const userData = {
           id: payload.userId,
           email: payload.email,
-          role: payload.role || 'customer'
+          name: payload.name || payload.email, // Include name field
+          role: payload.role || 'customer',
+          avatar_url: payload.avatar_url || '' // Include avatar_url
         };
         
         console.log('Setting user from token:', userData);
         setUser(userData);
       } else {
         console.log('No token found');
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       // Clear invalid token
       localStorage.removeItem('token');
       delete axios.defaults.headers.common['Authorization'];
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -64,12 +68,13 @@ export const AuthProvider = ({ children }) => {
       const payload = JSON.parse(atob(token.split('.')[1]));
       console.log('Decoded JWT payload:', payload);
       
-      // Set user state
+      // Set user state - Consistent with checkAuthState
       const userData = {
         id: payload.userId,
         email: payload.email,
+        name: payload.name || payload.email,
         role: payload.role || 'customer',
-        name: payload.name || payload.email // Fallback to email if no name
+        avatar_url: payload.avatar_url || ''
       };
       
       console.log('Setting user state:', userData);
@@ -77,6 +82,7 @@ export const AuthProvider = ({ children }) => {
       
     } catch (error) {
       console.error('Login error:', error);
+      setUser(null);
     }
   };
 

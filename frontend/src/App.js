@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 
 // Components
 import Navbar from './components/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -36,14 +37,57 @@ function App() {
         <Router>
           <Navbar />
           <Routes>
+            {/* Public routes */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/restaurants" element={<RestaurantList />} />
-            <Route path="/restaurants/:id" element={<RestaurantDetail />} />
-            <Route path="/booking/:restaurantId" element={<BookingForm />} />
-            <Route path="/admin" element={<AdminDashboard />} />
+            
+            {/* Protected routes - require authentication */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/restaurants" 
+              element={
+                <ProtectedRoute>
+                  <RestaurantList />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/restaurants/:id" 
+              element={
+                <ProtectedRoute>
+                  <RestaurantDetail />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/booking/:restaurantId" 
+              element={
+                <ProtectedRoute>
+                  <BookingForm />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Admin-only routes */}
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
           </Routes>
         </Router>
       </AuthProvider>

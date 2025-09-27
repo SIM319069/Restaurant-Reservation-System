@@ -15,12 +15,14 @@ router.get('/google/callback',
   (req, res) => {
     console.log('OAuth callback - user:', req.user);
     
+    // FIXED: Include all user fields in the JWT token
     const token = jwt.sign(
       { 
         userId: req.user.id, 
         email: req.user.email,
         name: req.user.name,
-        role: req.user.role 
+        role: req.user.role,
+        avatar_url: req.user.avatar_url || '' // Include avatar_url
       },
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: '24h' }
@@ -41,10 +43,18 @@ router.post('/logout', (req, res) => {
   });
 });
 
-// Get current user
+// Get current user - FIXED: Return proper user data
 router.get('/user', (req, res) => {
   if (req.user) {
-    res.json(req.user);
+    // Return clean user object
+    const userData = {
+      id: req.user.id || req.user.userId,
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      avatar_url: req.user.avatar_url
+    };
+    res.json(userData);
   } else {
     res.status(401).json({ error: 'Not authenticated' });
   }
