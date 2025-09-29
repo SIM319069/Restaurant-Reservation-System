@@ -1,3 +1,4 @@
+// Complete Admin Routes - backend/src/routes/admin.js
 const express = require('express');
 const { Pool } = require('pg');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
@@ -16,6 +17,8 @@ const pool = new Pool({
 // Apply admin middleware to all routes
 router.use(requireAuth);
 router.use(requireAdmin);
+
+// ==================== DASHBOARD & STATS ====================
 
 // Get dashboard statistics
 router.get('/stats', async (req, res) => {
@@ -45,6 +48,8 @@ router.get('/stats', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
+
+// ==================== RESERVATION MANAGEMENT ====================
 
 // Get all reservations with filtering
 router.get('/reservations', async (req, res) => {
@@ -77,26 +82,19 @@ router.get('/reservations', async (req, res) => {
 
     // Filter by date
     if (date_filter && date_filter !== 'all') {
-      const today = new Date();
-      let dateCondition = '';
-
       switch (date_filter) {
         case 'today':
-          dateCondition = 'r.reservation_date = CURRENT_DATE';
+          query += ' AND r.reservation_date = CURRENT_DATE';
           break;
         case 'tomorrow':
-          dateCondition = 'r.reservation_date = CURRENT_DATE + INTERVAL \'1 day\'';
+          query += ' AND r.reservation_date = CURRENT_DATE + INTERVAL \'1 day\'';
           break;
         case 'week':
-          dateCondition = 'r.reservation_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL \'7 days\'';
+          query += ' AND r.reservation_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL \'7 days\'';
           break;
         case 'month':
-          dateCondition = 'r.reservation_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL \'30 days\'';
+          query += ' AND r.reservation_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL \'30 days\'';
           break;
-      }
-
-      if (dateCondition) {
-        query += ` AND ${dateCondition}`;
       }
     }
 
@@ -142,6 +140,259 @@ router.put('/reservations/:id/status', async (req, res) => {
   }
 });
 
+// Get reservation details
+router.get('/reservations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `
+      SELECT 
+        r.*,
+        u.name as customer_name,
+        u.email as customer_email,
+        u.avatar_url as customer_avatar,
+        rest.name as restaurant_name,
+        rest.address as restaurant_address,
+        rt.table_number,
+        rt.capacity as table_capacity
+      FROM reservations r
+      LEFT JOIN users u ON r.user_id = u.id
+      LEFT JOIN restaurants rest ON r.restaurant_id = rest.id
+      LEFT JOIN restaurant_tables rt ON r.table_id = rt.id
+      WHERE r.id = $1
+    `;
+
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching reservation details:', error);
+    res.status(500).json({ error: 'Failed to fetch reservation details' });
+  }
+});
+
+// ==================== RESTAURANT MANAGEMENT ====================
+
+// Get admin's own restaurants
+router.get('/my-restaurants', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        r.*,
+        COUNT(DISTINCT rt.id) as table_count,
+        COUNT(DISTINCT res.id) as reservation_count
+      FROM restaurants r
+      LEFT JOIN restaurant_tables rt ON r.id = rt.restaurant_id
+      LEFT JOIN reservations res ON r.id = res.restaurant_id
+      WHERE r.owner_id = $1
+      GROUP BY r.id
+      ORDER BY r.created_at DESC
+    `;
+    
+    const result = await pool.query(query, [req.user.userId]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching admin restaurants:', error);
+    res.status(500).json({ error: 'Failed to fetch restaurants' });
+  }
+});
+
+// Create new restaurant
+router.post('/restaurants', async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      address,
+      phone,
+      email,
+      capacity,
+      image_url,
+      opening_hours
+    } = req.body;
+
+    const query = `
+      INSERT INTO restaurants (
+        name, description, address, phone, email,
+        owner_id, capacity, image_url, opening_hours, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `;
+
+    const values = [
+      name,
+      description,
+      address,
+      phone,
+      email,
+      req.user.userId,
+      capacity || 50,
+      image_url,
+      JSON.stringify(opening_hours),
+      'active'
+    ];
+
+    const result = await pool.query(query, values);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating restaurant:', error);
+    res.status(500).json({ error: 'Failed to create restaurant' });
+  }
+});
+
+// Update restaurant
+router.put('/restaurants/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      description,
+      address,
+      phone,
+      email,
+      capacity,
+      image_url,
+      opening_hours,
+      status
+    } = req.body;
+
+    // Verify ownership
+    const ownerCheck = await pool.query(
+      'SELECT owner_id FROM restaurants WHERE id = $1',
+      [id]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    if (ownerCheck.rows[0].owner_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only update your own restaurants' });
+    }
+
+    const query = `
+      UPDATE restaurants 
+      SET name = $1, description = $2, address = $3, phone = $4,
+          email = $5, capacity = $6, image_url = $7, opening_hours = $8,
+          status = $9, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $10
+      RETURNING *
+    `;
+
+    const values = [
+      name,
+      description,
+      address,
+      phone,
+      email,
+      capacity,
+      image_url,
+      JSON.stringify(opening_hours),
+      status || 'active',
+      id
+    ];
+
+    const result = await pool.query(query, values);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating restaurant:', error);
+    res.status(500).json({ error: 'Failed to update restaurant' });
+  }
+});
+
+// Get restaurant tables
+router.get('/restaurants/:id/tables', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `
+      SELECT * FROM restaurant_tables 
+      WHERE restaurant_id = $1
+      ORDER BY table_number
+    `;
+
+    const result = await pool.query(query, [id]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching tables:', error);
+    res.status(500).json({ error: 'Failed to fetch tables' });
+  }
+});
+
+// Add table to restaurant
+router.post('/restaurants/:id/tables', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { table_number, capacity } = req.body;
+
+    // Verify ownership
+    const ownerCheck = await pool.query(
+      'SELECT owner_id FROM restaurants WHERE id = $1',
+      [id]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    if (ownerCheck.rows[0].owner_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only add tables to your own restaurants' });
+    }
+
+    const query = `
+      INSERT INTO restaurant_tables (restaurant_id, table_number, capacity, status)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [id, table_number, capacity, 'available']);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding table:', error);
+    res.status(500).json({ error: 'Failed to add table' });
+  }
+});
+
+// Delete table
+router.delete('/tables/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if table has any future reservations
+    const reservationCheck = await pool.query(
+      `SELECT COUNT(*) as count FROM reservations 
+       WHERE table_id = $1 
+       AND reservation_date >= CURRENT_DATE 
+       AND status IN ('pending', 'confirmed')`,
+      [id]
+    );
+
+    if (parseInt(reservationCheck.rows[0].count) > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete table with active or future reservations' 
+      });
+    }
+
+    const query = 'DELETE FROM restaurant_tables WHERE id = $1 RETURNING *';
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+
+    res.json({ message: 'Table deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting table:', error);
+    res.status(500).json({ error: 'Failed to delete table' });
+  }
+});
+
+// ==================== ALL RESTAURANTS & USERS ====================
+
 // Get all restaurants with additional data
 router.get('/restaurants', async (req, res) => {
   try {
@@ -184,125 +435,6 @@ router.get('/users', async (req, res) => {
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-// Get reservation details
-router.get('/reservations/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const query = `
-      SELECT 
-        r.*,
-        u.name as customer_name,
-        u.email as customer_email,
-        u.avatar_url as customer_avatar,
-        u.phone as customer_phone,
-        rest.name as restaurant_name,
-        rest.address as restaurant_address,
-        rest.phone as restaurant_phone,
-        rt.table_number,
-        rt.capacity as table_capacity
-      FROM reservations r
-      LEFT JOIN users u ON r.user_id = u.id
-      LEFT JOIN restaurants rest ON r.restaurant_id = rest.id
-      LEFT JOIN restaurant_tables rt ON r.table_id = rt.id
-      WHERE r.id = $1
-    `;
-
-    const result = await pool.query(query, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Reservation not found' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching reservation details:', error);
-    res.status(500).json({ error: 'Failed to fetch reservation details' });
-  }
-});
-
-// Bulk update reservation statuses
-router.put('/reservations/bulk-status', async (req, res) => {
-  try {
-    const { reservation_ids, status } = req.body;
-
-    // Validate status
-    const validStatuses = ['pending', 'confirmed', 'rejected', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
-
-    if (!Array.isArray(reservation_ids) || reservation_ids.length === 0) {
-      return res.status(400).json({ error: 'Invalid reservation IDs' });
-    }
-
-    const placeholders = reservation_ids.map((_, index) => `$${index + 2}`).join(',');
-    const updateQuery = `
-      UPDATE reservations 
-      SET status = $1, updated_at = CURRENT_TIMESTAMP 
-      WHERE id IN (${placeholders})
-      RETURNING *
-    `;
-
-    const result = await pool.query(updateQuery, [status, ...reservation_ids]);
-
-    res.json({
-      updated_count: result.rows.length,
-      reservations: result.rows
-    });
-  } catch (error) {
-    console.error('Error bulk updating reservation statuses:', error);
-    res.status(500).json({ error: 'Failed to bulk update reservation statuses' });
-  }
-});
-
-// Get analytics data
-router.get('/analytics', async (req, res) => {
-  try {
-    const { period = '30' } = req.query; // Default to 30 days
-
-    const analyticsQuery = `
-      SELECT 
-        DATE(r.created_at) as date,
-        COUNT(*) as total_reservations,
-        COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) as confirmed_reservations,
-        COUNT(CASE WHEN r.status = 'pending' THEN 1 END) as pending_reservations,
-        COUNT(CASE WHEN r.status = 'rejected' THEN 1 END) as rejected_reservations,
-        COUNT(CASE WHEN r.status = 'cancelled' THEN 1 END) as cancelled_reservations
-      FROM reservations r
-      WHERE r.created_at >= CURRENT_DATE - INTERVAL '${parseInt(period)} days'
-      GROUP BY DATE(r.created_at)
-      ORDER BY DATE(r.created_at)
-    `;
-
-    const restaurantStatsQuery = `
-      SELECT 
-        rest.name as restaurant_name,
-        COUNT(r.id) as total_reservations,
-        COUNT(CASE WHEN r.status = 'confirmed' THEN 1 END) as confirmed_count
-      FROM restaurants rest
-      LEFT JOIN reservations r ON rest.id = r.restaurant_id
-      WHERE r.created_at >= CURRENT_DATE - INTERVAL '${parseInt(period)} days'
-      GROUP BY rest.id, rest.name
-      ORDER BY total_reservations DESC
-      LIMIT 10
-    `;
-
-    const [dailyStats, restaurantStats] = await Promise.all([
-      pool.query(analyticsQuery),
-      pool.query(restaurantStatsQuery)
-    ]);
-
-    res.json({
-      daily_stats: dailyStats.rows,
-      restaurant_stats: restaurantStats.rows
-    });
-  } catch (error) {
-    console.error('Error fetching analytics:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics data' });
   }
 });
 

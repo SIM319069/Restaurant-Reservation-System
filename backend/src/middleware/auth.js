@@ -1,10 +1,16 @@
+// backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
 
 // Middleware to check if user is authenticated
 const requireAuth = (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '') || 
-                req.cookies?.token ||
-                req.session?.token;
+  // Try multiple sources for the token
+  const authHeader = req.header('Authorization');
+  const token = authHeader?.replace('Bearer ', '') || req.session?.token;
+
+  // Also check if user is already authenticated via session (from Passport)
+  if (req.user) {
+    return next();
+  }
 
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
@@ -15,6 +21,7 @@ const requireAuth = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
+    console.error('Token verification failed:', error.message);
     return res.status(401).json({ error: 'Invalid token.' });
   }
 };
@@ -24,6 +31,8 @@ const requireAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
+
+  console.log('User role:', req.user.role); // Debug log
 
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required.' });
@@ -61,8 +70,8 @@ const extractUser = (req, res, next) => {
   }
 
   // Then try to extract from JWT token
-  const token = req.header('Authorization')?.replace('Bearer ', '') || 
-                req.cookies?.token;
+  const authHeader = req.header('Authorization');
+  const token = authHeader?.replace('Bearer ', '');
 
   if (token) {
     try {

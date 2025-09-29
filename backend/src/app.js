@@ -4,7 +4,6 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const session = require('express-session');
 const passport = require('passport');
-const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 // Import routes
@@ -12,7 +11,7 @@ const authRoutes = require('./routes/auth');
 const restaurantRoutes = require('./routes/restaurants');
 const reservationRoutes = require('./routes/reservations');
 const userRoutes = require('./routes/users');
-const adminRoutes = require('./routes/admin'); // NEW: Admin routes
+const adminRoutes = require('./routes/admin');
 
 // Import passport config
 require('./services/passport');
@@ -29,7 +28,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser()); // NEW: Add cookie parser for token handling
 
 // Session configuration
 app.use(session({
@@ -49,10 +47,10 @@ app.use(passport.session());
 
 // Routes
 app.use('/auth', authRoutes);
-app.use('/api/restaurants', restaurantRoutes);
-app.use('/api/reservations', reservationRoutes);
+app.use('/api/restaurants', restaurantRoutes);  // Public restaurant routes
+app.use('/api/reservations', reservationRoutes); // Customer reservations
 app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes); // NEW: Admin routes
+app.use('/api/admin', adminRoutes);  // Admin routes (includes restaurant management)
 
 // Health check
 app.get('/health', (req, res) => {

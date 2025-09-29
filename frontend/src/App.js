@@ -13,6 +13,7 @@ import RestaurantList from './pages/RestaurantList';
 import RestaurantDetail from './pages/RestaurantDetail';
 import BookingForm from './pages/BookingForm';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminRestaurantManagement from './pages/AdminRestaurantManagement';
 import AuthCallback from './pages/AuthCallback';
 
 // Context
@@ -85,6 +86,15 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/admin/restaurants" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminRestaurantManagement />
                 </ProtectedRoute>
               } 
             />
